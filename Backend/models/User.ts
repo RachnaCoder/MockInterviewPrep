@@ -158,6 +158,12 @@ const UserSchema: Schema = new Schema(
       minutesThisMonth: { type: Number, default: 0 },
       lastResetDate: { type: Date, default: Date.now },
     },
+
+  role: {
+   type: String,
+   enum: ["user", "admin"],
+   default: "user"
+},
   },
   {
     timestamps: true,

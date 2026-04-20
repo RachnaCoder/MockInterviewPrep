@@ -14,6 +14,7 @@ import authRoutes from './routes/auth.routes.ts';
 import subscriptionRoutes from './routes/subscription.routes.ts';
 import webhookRoutes from './routes/webhook.routes.ts';
 import interviewRoutes from './routes/interview.routes.ts';
+import adminRoutes from "./routes/admin.routes.ts";
 
 
 async function startServer() {
@@ -42,6 +43,9 @@ app.use(cors({
   app.use('/api/subscriptions', subscriptionRoutes);
   app.use('/api/webhooks', webhookRoutes);
   app.use('/api/interviews', interviewRoutes);
+
+  app.use("/api/admin", adminRoutes);
+
 
   // API 404 Handler
   app.use('/api/*', (req, res) => {

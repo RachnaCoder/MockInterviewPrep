@@ -2684,87 +2684,212 @@ export const InterviewRoom = ({ onEnd }: any) => {
   const [turn, setTurn] = useState<"ai" | "user">("ai");
   const [transcript, setTranscript] = useState<any[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [interimText, setInterimText] = useState("");
 
   const recognitionRef = useRef<any>(null);
   const currentSpeechRef = useRef("");
-
   const aiRef = useRef<any>(null);
+  const ttsKeepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // INIT AI
+  // ── INIT AI + voices ────────────────────────────────────────────────────────
   useEffect(() => {
     aiRef.current = new GoogleGenAI({
       apiKey: import.meta.env.VITE_GEMINI_API_KEY,
     });
 
+    // Pre-load voices so they're ready when we first call speak()
+    const loadVoices = () => window.speechSynthesis.getVoices();
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
     startInterview();
+
+    return () => {
+      // Cleanup on unmount
+      window.speechSynthesis.cancel();
+      stopTTSKeepalive();
+      recognitionRef.current?.stop();
+    };
   }, []);
 
-  // ================= START =================
+  // ── CHROME TTS KEEPALIVE ────────────────────────────────────────────────────
+  // Chrome has a bug where speechSynthesis auto-pauses after ~15 seconds.
+  const startTTSKeepalive = () => {
+    stopTTSKeepalive(); // clear any existing interval first
+    ttsKeepaliveRef.current = setInterval(() => {
+      if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }, 5000);
+  };
+
+  const stopTTSKeepalive = () => {
+    if (ttsKeepaliveRef.current) {
+      clearInterval(ttsKeepaliveRef.current);
+      ttsKeepaliveRef.current = null;
+    }
+  };
+
+  // ── START INTERVIEW ─────────────────────────────────────────────────────────
   const startInterview = async () => {
     console.log("🔥 Starting interview");
-
-    const text = await askAI("Start interview. Introduce yourself and ask first question.");
+    const text = await askAI(
+      "Start interview. Introduce yourself briefly and ask the first interview question."
+    );
     speak(text);
-
     setTranscript([{ role: "ai", text }]);
     setTurn("user");
   };
 
-  // ================= ASK AI =================
+  // ── ASK AI ──────────────────────────────────────────────────────────────────
   const askAI = async (prompt: string) => {
     const res = await aiRef.current.models.generateContent({
       model: "gemini-2.0-flash",
       contents: prompt,
     });
-
     return res.text;
   };
 
-  // ================= SPEAK =================
+  // ── SPEAK (fixed) ───────────────────────────────────────────────────────────
+  // Fixes:
+  //  1. Cancel any ongoing speech before starting new one (prevents overlap)
+  //  2. Split text into sentences to avoid Chrome's ~200 char cutoff bug
+  //  3. Chain sentences via onend callbacks so they play in sequence
+  //  4. Keep-alive interval to prevent Chrome's 15s auto-pause bug
   const speak = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    speechSynthesis.speak(utterance);
+    // Cancel any ongoing speech first
+    window.speechSynthesis.cancel();
+
+    // Split on sentence boundaries so no single chunk is too long
+    const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+
+    setAiSpeaking(true);
+    startTTSKeepalive();
+
+    const speakChunk = (index: number) => {
+      if (index >= sentences.length) {
+        setAiSpeaking(false);
+        stopTTSKeepalive();
+        return;
+      }
+
+      const chunk = sentences[index].trim();
+      if (!chunk) {
+        speakChunk(index + 1);
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      // Pick a natural-sounding English voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const preferred =
+        voices.find((v) => v.name.includes("Google US English")) ||
+        voices.find((v) => v.name.includes("Google") && v.lang === "en-US") ||
+        voices.find((v) => v.lang === "en-US") ||
+        voices.find((v) => v.lang.startsWith("en"));
+      if (preferred) utterance.voice = preferred;
+
+      // On successful end, speak the next chunk
+      utterance.onend = () => speakChunk(index + 1);
+
+      // On error, log and continue with the next chunk instead of stopping
+      utterance.onerror = (e) => {
+        console.warn(`TTS error on chunk ${index}:`, e.error);
+        speakChunk(index + 1);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    // Small delay after cancel() before speaking — required by Chrome
+    setTimeout(() => speakChunk(0), 100);
   };
 
-  // ================= RECORD =================
+  // ── START RECORDING (fixed) ─────────────────────────────────────────────────
+  // Fixes:
+  //  1. Guard against starting while AI is still speaking
+  //  2. continuous = true  → prevents early cutoff on brief pauses
+  //  3. interimResults = true → shows real-time feedback to user
+  //  4. Added onerror handler (was completely missing before)
+  //  5. Accumulates all final results instead of only first result
   const startRecording = () => {
     if (turn !== "user") return;
 
-    setIsRecording(true);
+    // If AI is still speaking, cancel it then start listening
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      stopTTSKeepalive();
+      setAiSpeaking(false);
+    }
 
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
+    if (!SpeechRecognition) {
+      alert(
+        "Speech recognition is not supported in this browser. Please use Chrome."
+      );
+      return;
+    }
+
+    currentSpeechRef.current = "";
+    setInterimText("");
+    setIsRecording(true);
+
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;       // was false → caused early cutoff
+    recognition.interimResults = true;   // show live transcription
+    recognition.lang = "en-US";
 
     recognition.onresult = (event: any) => {
-      const text = event.results[0][0].transcript;
-      currentSpeechRef.current = text;
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          currentSpeechRef.current += result[0].transcript + " ";
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setInterimText(interim); // live preview
+    };
+
+    // Error handler was completely missing before — silent failures
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      if (event.error === "not-allowed") {
+        alert(
+          "Microphone access denied. Please allow microphone permission in your browser and reload."
+        );
+      } else if (event.error === "network") {
+        alert("Network error with speech recognition. Check your connection.");
+      }
+      setIsRecording(false);
+      setInterimText("");
     };
 
     recognition.onend = async () => {
       setIsRecording(false);
+      setInterimText("");
 
-      const userText = currentSpeechRef.current;
+      const userText = currentSpeechRef.current.trim();
       if (!userText) return;
 
       setTranscript((prev) => [...prev, { role: "user", text: userText }]);
-
       setTurn("ai");
 
       const aiReply = await askAI(
-        `Candidate answered: "${userText}". Continue interview and ask next question.`
+        `Candidate answered: "${userText}". Continue the interview and ask the next question.`
       );
 
       setTranscript((prev) => [...prev, { role: "ai", text: aiReply }]);
-
       speak(aiReply);
-
       setTurn("user");
       currentSpeechRef.current = "";
     };
@@ -2777,33 +2902,77 @@ export const InterviewRoom = ({ onEnd }: any) => {
     recognitionRef.current?.stop();
   };
 
-  // ================= UI =================
+  // ── UI ───────────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: 20 }}>
       <h2>Interview (Stable Mode)</h2>
 
       <p>Status: Connected</p>
-      <p>Turn: {turn}</p>
+      <p>
+        Turn:{" "}
+        <strong style={{ color: turn === "ai" ? "#f59e0b" : "#10b981" }}>
+          {turn === "ai" ? "AI is speaking..." : "Your turn"}
+        </strong>
+      </p>
+
+      {aiSpeaking && (
+        <p style={{ color: "#f59e0b", fontStyle: "italic" }}>
+          🔊 AI Interviewer is speaking...
+        </p>
+      )}
 
       <button
         onMouseDown={startRecording}
         onMouseUp={stopRecording}
+        disabled={turn !== "user"}
         style={{
           padding: 20,
           borderRadius: "50%",
-          background: isRecording ? "green" : "black",
+          background: isRecording ? "green" : turn !== "user" ? "#555" : "black",
           color: "white",
+          cursor: turn !== "user" ? "not-allowed" : "pointer",
+          opacity: turn !== "user" ? 0.6 : 1,
         }}
       >
         🎤 Hold to Speak
       </button>
 
-      <button onClick={() => onEnd(transcript)}>End</button>
+      {/* Live interim transcription shown while user speaks */}
+      {interimText && (
+        <p
+          style={{
+            marginTop: 10,
+            color: "#888",
+            fontStyle: "italic",
+            fontSize: 14,
+          }}
+        >
+          Listening: {interimText}
+        </p>
+      )}
+
+      <button
+        onClick={() => {
+          window.speechSynthesis.cancel();
+          stopTTSKeepalive();
+          recognitionRef.current?.stop();
+          onEnd(transcript);
+        }}
+        style={{ marginLeft: 16, padding: "10px 20px" }}
+      >
+        End Interview
+      </button>
 
       <div style={{ marginTop: 20 }}>
         {transcript.map((t, i) => (
-          <div key={i}>
-            <b>{t.role}:</b> {t.text}
+          <div
+            key={i}
+            style={{
+              marginBottom: 8,
+              color: t.role === "ai" ? "#f59e0b" : "#10b981",
+            }}
+          >
+            <b>{t.role === "ai" ? "AI Interviewer" : "You"}:</b> {t.text}
           </div>
         ))}
       </div>
