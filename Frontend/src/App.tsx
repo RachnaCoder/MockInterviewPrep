@@ -15,9 +15,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Briefcase, User, Sparkles, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Menu, X as CloseIcon } from 'lucide-react';
 import { cn } from './lib/utils';
 
+import AdminDashboard from "./components/AdminDashboard";
+
+import AdminLogin from "./components/AdminLogin";
+
+
 import { useAuth } from './contexts/AuthContext';
 
-type AppState = 'landing' | 'processing' | 'interview' | 'feedback';
+type AppState = 'landing' | 'processing' | 'interview' | 'feedback'|'admin'| 'admin-login';
 
 export default function App() {
   const [state, setState] = useState<AppState>('landing');
@@ -33,6 +38,10 @@ export default function App() {
   const [maxDuration, setMaxDuration] = useState(6); // Default to 6
   const [transcript, setTranscript] = useState<{ role: 'user' | 'ai', text: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+
+
+
 
   const handleStartInterview = async () => {
     if (!user) {
@@ -127,6 +136,16 @@ export default function App() {
     setIsMobileMenuOpen(false);
   };
 
+
+if (state === 'admin-login') {
+  return <AdminLogin onSuccess={() => setState('admin')} />;
+}
+
+if (state === 'admin') {
+  return <AdminDashboard />;
+}
+
+
   if (state === 'interview') {
     return (
       <InterviewRoom 
@@ -188,6 +207,13 @@ export default function App() {
                   className="px-4 py-2 rounded-full bg-zinc-800 text-white hover:bg-zinc-700 transition-all"
                 >
                   Sign Out
+                </button>
+
+                <button 
+               onClick={() => setState('admin-login')}
+               className="px-4 py-2 rounded-full bg-emerald-500 text-black hover:bg-emerald-400"
+                >
+                Admin
                 </button>
               </div>
             ) : (
