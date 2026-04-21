@@ -101,6 +101,7 @@ export interface IUser extends Document {
   phone?: string;
   password?: string;
   plan: PlanType;
+  role: string;
   subscription: {
     id?: string; // Razorpay Subscription ID
     status: SubscriptionStatus;

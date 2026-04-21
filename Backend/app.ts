@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 5001;
   app.set('trust proxy', 1);
 
   // Connect to MongoDB (non-blocking)
-  connectDB();
+   await connectDB();
 
   // Middlewares
   

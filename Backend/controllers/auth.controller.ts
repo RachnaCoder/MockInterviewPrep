@@ -54,7 +54,6 @@ export const signin = async (req: Request, res: Response) => {
   return res.status(400).json({ message: 'Missing fields' });
 }
 
-
     const user = await User.findOne({ email }).select('+password');
     if (!user || !user.password) {
       return res.status(400).json({ message: 'Invalid credentials' });
@@ -81,7 +80,9 @@ export const signin = async (req: Request, res: Response) => {
         name: user.name,
         phone: user.phone,
         plan: user.plan,
+        role: user.role,
         payment_method: user.subscription?.paymentMethod,
+        
       },
     });
   } catch (error) {
@@ -89,6 +90,8 @@ export const signin = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Signin failed' });
   }
 };
+
+
 
 export const me = async (req: Request, res: Response) => {
   try {
