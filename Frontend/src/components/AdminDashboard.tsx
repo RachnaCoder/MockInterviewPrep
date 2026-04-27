@@ -6,6 +6,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
   const [stats, setStats] = useState({ users: 0, interviews: 0 });
+  const [tips, setTips] = useState<any[]>([]);
+  const [newTip, setNewTip] = useState({
+  title: "",
+  content: "",
+  category: "",
+  });
 
   useEffect(() => {
     fetchData();
@@ -38,8 +44,20 @@ if (!interviewsRes.ok) {
   console.error("Interview API error:", interviewsData);
   return;
 }
+
+const tipsRes = await fetch("/api/admin/tips", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const tipsData = await tipsRes.json();
+
+  if (!tipsRes.ok) {
+    console.error("Tips API error:", tipsData);
+    return;
+  }
     setUsers(usersData);
     setInterviews(interviewsData);
+    setTips(tipsData);
     setStats({
       users: usersData.length,
       interviews: interviewsData.length,
@@ -110,6 +128,34 @@ const deleteInterview = async (id: string) => {
   } catch (err) {
     console.error(err);
   }
+};
+
+const addTip = async () => {
+  const token = localStorage.getItem("token");
+
+  const res = await fetch("/api/admin/tips", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(newTip),
+  });
+
+  const data = await res.json();
+  setTips([...tips, data]);
+  setNewTip({ title: "", content: "", category: "" });
+};
+
+const deleteTip = async (id: string) => {
+  const token = localStorage.getItem("token");
+
+  await fetch(`/api/admin/tips/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  setTips(tips.filter(t => t._id !== id));
 };
 
 
@@ -230,6 +276,66 @@ const deleteInterview = async (id: string) => {
             ))}
           </div>
         </div>
+
+
+
+        {/* Tips Management */}
+<div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 mt-10">
+  <h2 className="text-xl font-semibold mb-4 text-emerald-400">
+    Manage Interview Tips
+  </h2>
+
+  {/* Add Tip Form */}
+  <div className="grid gap-3 mb-6">
+    <input
+      placeholder="Title"
+      value={newTip.title}
+      onChange={(e) => setNewTip({ ...newTip, title: e.target.value })}
+      className="bg-zinc-800 p-2 rounded"
+    />
+    <textarea
+      placeholder="Content"
+      value={newTip.content}
+      onChange={(e) => setNewTip({ ...newTip, content: e.target.value })}
+      className="bg-zinc-800 p-2 rounded"
+    />
+    <input
+      placeholder="Category"
+      value={newTip.category}
+      onChange={(e) => setNewTip({ ...newTip, category: e.target.value })}
+      className="bg-zinc-800 p-2 rounded"
+    />
+
+    <button
+      onClick={addTip}
+      className="bg-emerald-500 text-black py-2 rounded font-bold"
+    >
+      Add Tip
+    </button>
+  </div>
+
+  {/* Tips List */}
+  <div className="space-y-3">
+    {tips.map((tip) => (
+      <div
+        key={tip._id}
+        className="bg-zinc-800 p-4 rounded flex justify-between"
+      >
+        <div>
+          <h3 className="font-bold">{tip.title}</h3>
+          <p className="text-sm text-zinc-400">{tip.category}</p>
+        </div>
+
+        <button
+          onClick={() => deleteTip(tip._id)}
+          className="text-red-500"
+        >
+          Delete
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
 
       </div>
     </div>

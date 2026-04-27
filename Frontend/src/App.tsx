@@ -14,15 +14,18 @@ import { parseFile } from './services/fileParser';
 import { motion, AnimatePresence } from 'motion/react';
 import { Briefcase, User, Sparkles, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Menu, X as CloseIcon } from 'lucide-react';
 import { cn } from './lib/utils';
+import Footer from "./components/Footer";
 
 import AdminDashboard from "./components/AdminDashboard";
 
 import AdminLogin from "./components/AdminLogin";
 
+import ServicesPage from "./components/ServicesPage";
+
 
 import { useAuth } from './contexts/AuthContext';
 
-type AppState = 'landing' | 'processing' | 'interview' | 'feedback'|'admin'| 'admin-login';
+type AppState = 'landing' | 'processing' | 'interview' | 'feedback'|'admin'| 'admin-login'| 'services';
 
 export default function App() {
   const [state, setState] = useState<AppState>('landing');
@@ -171,6 +174,10 @@ if (state === 'admin') {
     );
   }
 
+  if (state === 'services') {
+  return <ServicesPage />;
+}
+
   return (
     <div className="min-h-screen bg-[#050505] text-white selection:bg-emerald-500/30">
       {/* Background Decorative Elements */}
@@ -195,7 +202,13 @@ if (state === 'admin') {
             <button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Features</button>
             {user && <button onClick={() => scrollToSection('history')} className="hover:text-white transition-colors">History</button>}
             <button onClick={() => scrollToSection('pricing')} className="hover:text-white transition-colors">Pricing</button>
-            <button className="hover:text-white transition-colors">About</button>
+            {/* <button className="hover:text-white transition-colors">About</button> */}
+            <button 
+               onClick={() => setState('services')} 
+               className="hover:text-white transition-colors"
+                >
+                 Services
+               </button>
             {user ? (
               <div className="flex items-center space-x-4">
                 <div className="flex flex-col items-end">
@@ -432,9 +445,11 @@ if (state === 'admin') {
       <SignInModal isOpen={isSignInOpen} onClose={() => setIsSignInOpen(false)} />
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-zinc-900 py-12 text-center text-zinc-600 text-sm">
+      {/* <footer className="relative z-10 border-t border-zinc-900 py-12 text-center text-zinc-600 text-sm">
         <p>&copy; 2026 InterviewPro AI. All rights reserved.</p>
-      </footer>
+      </footer> */}
+
+      <Footer/>
     </div>
   );
 }
