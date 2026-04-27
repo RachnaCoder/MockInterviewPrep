@@ -3,6 +3,7 @@ import { authMiddleware } from "../middleware/auth.middleware.ts";
 import { adminMiddleware } from "../middleware/admin.middleware.ts";
 import { User } from "../models/User.ts";
 import mongoose from "mongoose";
+import { Tip } from "../models/Tip.ts";
 
 const router = express.Router();
 
@@ -63,5 +64,22 @@ router.delete("/interviews/:id", async (req, res) => {
     console.error("Interview delete error:", err);
     res.status(500).json({ message: "Delete failed" });
   }
+});
+
+
+
+// ADD TIP
+router.post("/tips", async (req, res) => {
+  const { title, content, category } = req.body;
+
+  const tip = await Tip.create({ title, content, category });
+
+  res.json(tip);
+});
+
+// DELETE TIP
+router.delete("/tips/:id", async (req, res) => {
+  await Tip.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
 });
 export default router;

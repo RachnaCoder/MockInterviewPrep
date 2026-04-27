@@ -47,30 +47,93 @@ export const signup = async (req: Request, res: Response) => {
   }
 };
 
+// export const signin = async (req: Request, res: Response) => {
+//   try {
+//     const { email, password } = req.body;
+//     if (!email || !password) {
+//   return res.status(400).json({ message: 'Missing fields' });
+// }
+
+//     const user = await User.findOne({ email }).select('+password');
+//     if (!user || !user.password) {
+//       return res.status(400).json({ message: 'Invalid credentials' });
+//     }
+
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({ message: 'Invalid credentials' });
+//     }
+
+//     const token = jwt.sign({ userId: user._id.toString() },
+//      process.env.JWT_SECRET as string, 
+//      { expiresIn: '7d' });
+//     res.cookie('token', token, { httpOnly: true, 
+//       secure: false,
+//        sameSite: 'lax',
+//         path: '/' });
+
+//     return res.json({
+//       token,
+//       user: {
+//         _id: user._id,
+//         email: user.email,
+//         name: user.name,
+//         phone: user.phone,
+//         plan: user.plan,
+//         role: user.role,
+//         payment_method: user.subscription?.paymentMethod,
+        
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Signin error:', error);
+//     res.status(500).json({ message: 'Signin failed' });
+//   }
+// };
+
+
+
+
+
+import mongoose from "mongoose";
+
 export const signin = async (req: Request, res: Response) => {
   try {
+    // ✅ ADD THIS HERE (top of function)
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ message: "Database not connected" });
+    }
+
     const { email, password } = req.body;
+
     if (!email || !password) {
-  return res.status(400).json({ message: 'Missing fields' });
-}
+      return res.status(400).json({ message: 'Missing fields' });
+    }
 
     const user = await User.findOne({ email }).select('+password');
+
     if (!user || !user.password) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ userId: user._id.toString() },
-     process.env.JWT_SECRET as string, 
-     { expiresIn: '7d' });
-    res.cookie('token', token, { httpOnly: true, 
+    const token = jwt.sign(
+      { userId: user._id.toString() },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
       secure: false,
-       sameSite: 'lax',
-        path: '/' });
+      sameSite: 'lax',
+      path: '/',
+    });
 
     return res.json({
       token,
@@ -82,14 +145,16 @@ export const signin = async (req: Request, res: Response) => {
         plan: user.plan,
         role: user.role,
         payment_method: user.subscription?.paymentMethod,
-        
       },
     });
+
   } catch (error) {
     console.error('Signin error:', error);
     res.status(500).json({ message: 'Signin failed' });
   }
 };
+
+
 
 
 

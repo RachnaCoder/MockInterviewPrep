@@ -15,6 +15,7 @@ import subscriptionRoutes from './routes/subscription.routes.ts';
 import webhookRoutes from './routes/webhook.routes.ts';
 import interviewRoutes from './routes/interview.routes.ts';
 import adminRoutes from "./routes/admin.routes.ts";
+import tipsRoutes from "./routes/tips.routes.ts";
 
 
 async function startServer() {
@@ -46,6 +47,7 @@ app.use(cors({
 
   app.use("/api/admin", adminRoutes);
 
+app.use("/api/tips", tipsRoutes);
 
   // API 404 Handler
   app.use('/api/*', (req, res) => {
